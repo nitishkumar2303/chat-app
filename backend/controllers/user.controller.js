@@ -66,6 +66,7 @@ export const logoutController = async (req, res) => {
     const token = req.cookies.token || req.headers.authorization.split(" ")[1];
 
     await redisClient.set(token, "logout", "EX", 60 * 60 * 24); // this would set the token in redis with a expiry time of 1 day
+    console.log("Token blacklisted in redis");
     res.clearCookie("token");
     res.status(200).send({
       message: "Logged Out Successfully",

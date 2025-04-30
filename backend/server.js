@@ -3,6 +3,7 @@ import http from "http";
 import app from "./app.js";
 import { Server } from "socket.io";
 import { socketAuth } from "./middleware/io.middleware.js";
+import {generateResult} from './services/ai.service.js'
 
 const port = process.env.PORT || 3000;
 
@@ -25,8 +26,26 @@ io.on("connection", (socket) => {
   
   socket.join(socket.roomId); // join the room with the project id
 
-  socket.on("project-message", (data) => {
+  socket.on("project-message", async (data) => {
     console.log("Received message:", data);
+    
+
+    const aiInMessage = data.message.includes("@ai");
+
+    if(aiInMessage){
+      socket.broadcast.to(socket.roomId).emit("project-message", data)
+      const prompt = data.message.replace("@ai" , "");
+      const result= await generateResult(prompt);
+
+      io.to(socket.roomId).emit("project-message" , {
+        sender: "ai",
+        message: result,
+      })
+      return;
+    }
+
+
+    
     socket.broadcast.to(socket.roomId).emit("project-message", data); // this will send the message to all the users in the project room
   });
   socket.on("event", (data) => {

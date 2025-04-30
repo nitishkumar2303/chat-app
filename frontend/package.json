@@ -12,9 +12,12 @@
   "dependencies": {
     "@tailwindcss/vite": "^4.1.1",
     "axios": "^1.8.4",
+    "markdown-to-jsx": "^7.7.6",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-markdown": "^10.1.0",
     "react-router-dom": "^7.4.1",
+    "react-syntax-highlighter": "^15.6.1",
     "remixicon": "^4.6.0",
     "socket.io-client": "^4.8.1",
     "tailwindcss": "^4.1.1"

@@ -8,6 +8,8 @@ import {
 } from "../config/socket.js";
 
 import { useUser } from "../context/user.context.jsx";
+import Markdown from "markdown-to-jsx";
+import { use } from "react";
 
 const Project = () => {
   const location = useLocation();
@@ -23,7 +25,22 @@ const Project = () => {
   const [projectUsers, setProjectUsers] = useState(project.users || []);
   const [message, setMessage] = useState("");
   const { user, updateUser } = useUser();
+  const [messages, setMessages] = useState([]); // State to store messages
   // console.log(user)
+
+  function SyntaxHighlightedCode(props) {
+    const ref = useRef(null);
+
+    useEffect(() => {
+      if (ref.current && props.className?.includes("lang-") && window.hljs) {
+        window.hljs.highlightElement(ref.current);
+
+        ref.current.removeAttribute("data-highlighted");
+      }
+    }, [props.className, props.children]);
+
+    return <code {...props} ref={ref} />;
+  }
 
   const toggleUserSelection = (user) => {
     setSelectedUsers((prev) => {
@@ -63,12 +80,12 @@ const Project = () => {
   };
 
   const send = (e) => {
-    if(e.key === "Enter") {
+    if (e.key === "Enter") {
       sendMessage("project-message", {
         message,
         sender: user.email,
       });
-      appendOutgoingMessage()
+      appendOutgoingMessage();
       setMessage("");
       return;
     }
@@ -79,7 +96,7 @@ const Project = () => {
       message,
       sender: user.email,
     });
-    appendOutgoingMessage()
+    appendOutgoingMessage();
     setMessage("");
   };
 
@@ -92,37 +109,17 @@ const Project = () => {
   const messageBox = useRef(null); // Use useRef instead of createRef
 
   function appendIncomingMessage(data) {
-    if (!messageBox.current) {
-      console.error("📛 messageBox is not ready yet!");
-      return;
-    }
-
-    const messageElement = document.createElement("div");
-    messageElement.className =
-      "incomming message flex flex-col gap-1 bg-gray-900 rounded-xl p-1 m-1 w-[75%]";
-    messageElement.innerHTML = `
-      <small class="opacity-40 text-xs">${data.sender}</small>
-      <p class="text-xs">${data.message}</p>
-    `;
-
-    messageBox.current.appendChild(messageElement);
-    messageBox.current.scrollTop = messageBox.current.scrollHeight;
+    setMessages((prevMessages) => [
+      ...prevMessages,
+      { type: "incoming", sender: data.sender, message: data.message },
+    ]);
   }
 
   function appendOutgoingMessage() {
-    if (!messageBox.current) {
-      console.error("📛 messageBox is not ready yet!");
-      return;
-    }
-    const messageElement = document.createElement("div");
-    messageElement.className =
-      "outgoing message flex flex-col gap-1 bg-gray-600 rounded-xl p-1 m-1 ml-auto w-[75%]";
-    messageElement.innerHTML = `
-      <small class="opacity-40 text-xs">${user.email}</small>
-      <p class="text-xs">${message}</p>
-    `;
-    messageBox.current.appendChild(messageElement);
-    messageBox.current.scrollTop = messageBox.current.scrollHeight;
+    setMessages((prevMessages) => [
+      ...prevMessages,
+      { type: "outgoing", sender: user.email, message },
+    ]);
   }
 
   useEffect(() => {
@@ -253,22 +250,39 @@ const Project = () => {
           ref={messageBox}
           className="conversation overflow-y-auto scrollbar-hide flex flex-col flex-1 gap-2"
         >
-          <div className="incomming message flex flex-col gap-1 bg-gray-900 rounded-xl p-2 m-2 w-[75%]">
-            <small className="opacity-40 text-xs">example.gmail.com</small>
-            <p className="text-xs">
-              Hello Lorem ipsum dolor sit amet consectetur adipisicing elit.
-              Quos, consequuntur.
-            </p>
-          </div>
-          <div className="outgoing message flex flex-col gap-1 bg-gray-600 rounded-xl p-2 m-2 ml-auto w-[75%]">
-            <small className="opacity-40 text-xs">example.gmail.com</small>
-            <p className="text-xs">
-              Hello Lorem ipsum dolor sit amet consectetur adipisicing elit.
-              Quos, consequuntur.
-            </p>
-          </div>
+          {messages.map((msg, index) => (
+            <div
+              key={index}
+              className={`${
+                msg.type === "incoming" ? "incomming" : "outgoing"
+              } message flex flex-col gap-1 ${
+                msg.type === "incoming" ? "bg-gray-900" : "bg-gray-600"
+              } rounded-xl p-2 m-2 ${
+                msg.type === "outgoing" ? "ml-auto" : ""
+              } w-[75%]
+              ${msg.sender === "ai" ? "w-[94%] mr-2 " : "max-w-[80%]"}`}
+            >
+
+              
+              <small className="opacity-40 text-xs">{msg.sender}</small>
+              {msg.sender === "ai" ? (
+                <div className="bg-blue-700 p-2 text-xs rounded-lg overflow-x-auto ">
+                  <Markdown
+                    children={msg.message}
+                    options={{
+                      overrides: {
+                        code: SyntaxHighlightedCode,
+                      },
+                    }}
+                  />
+                </div>
+              ) : (
+                <p className="text-xs">{msg.message}</p>
+              )}
+            </div>
+          ))}
         </div>
-        {/* end of conversation that contains incomming and outgoing messages */}
+        {/* end of conversation that contains incoming and outgoing messages */}
 
         {/* This part contains input field to send message */}
         <div className="message-box bg-gray-800">
