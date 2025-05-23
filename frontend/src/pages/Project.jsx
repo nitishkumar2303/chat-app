@@ -9,7 +9,9 @@ import {
 
 import { useUser } from "../context/user.context.jsx";
 import Markdown from "markdown-to-jsx";
-import { use } from "react";
+// import { use } from "react";
+
+import hljs from "highlight.js";
 
 const Project = () => {
   const location = useLocation();
@@ -26,6 +28,10 @@ const Project = () => {
   const [message, setMessage] = useState("");
   const { user, updateUser } = useUser();
   const [messages, setMessages] = useState([]); // State to store messages
+  const [fileTree, setFileTree] = useState({});
+
+  const [currentFile, setCurrentFile] = useState(null);
+  const [openFiles, setOpenFiles] = useState([]);
   // console.log(user)
 
   function SyntaxHighlightedCode(props) {
@@ -52,6 +58,23 @@ const Project = () => {
       }
     });
   };
+
+  function WriteAiMessage(message) {
+    const messageObject = JSON.parse(message);
+
+    return (
+      <div className="overflow-auto bg-slate-950 text-white rounded-sm p-2">
+        <Markdown
+          children={messageObject.text}
+          options={{
+            overrides: {
+              code: SyntaxHighlightedCode,
+            },
+          }}
+        />
+      </div>
+    );
+  }
 
   const handleAddSelectedUsers = () => {
     selectedUsers.forEach((user) => {
@@ -127,7 +150,16 @@ const Project = () => {
     const socket = initializeSocket(project._id);
     console.log("Setting up receiveMessage for project-message");
     recieveMessage(socket, "project-message", (data) => {
-      console.log("Received message:", data);
+      console.log("Received message before:", data);
+      const message = JSON.parse(data.message);
+      console.log("Message after parsing:", message);
+      console.log("MEssage file tree", message.fileTree);
+      if (message.fileTree) {
+        setFileTree(message.fileTree);
+      }
+
+      // console.log("File tree:", fileTree);
+      // console.log("Received message:", JSON.parse(data.message));
       appendIncomingMessage(data);
       // Handle incoming messages here
     });
@@ -158,7 +190,7 @@ const Project = () => {
 
   return (
     <main className="h-screen w-screen flex bg-gray-900 text-white">
-      <section className="left relative h-full min-w-75 max-w-95 bg-gray-800 flex flex-col justify-between">
+      <section className="left relative h-full min-w-85  max-w-100 bg-gray-800 flex flex-col justify-between">
         {/* This part contains header and modal */}
 
         <header className="flex justify-end p-2 px-4 w-full bg-gray-700">
@@ -262,20 +294,9 @@ const Project = () => {
               } w-[75%]
               ${msg.sender === "ai" ? "w-[94%] mr-2 " : "max-w-[80%]"}`}
             >
-
-              
               <small className="opacity-40 text-xs">{msg.sender}</small>
               {msg.sender === "ai" ? (
-                <div className="bg-blue-700 p-2 text-xs rounded-lg overflow-x-auto ">
-                  <Markdown
-                    children={msg.message}
-                    options={{
-                      overrides: {
-                        code: SyntaxHighlightedCode,
-                      },
-                    }}
-                  />
-                </div>
+                WriteAiMessage(msg.message)
               ) : (
                 <p className="text-xs">{msg.message}</p>
               )}
@@ -338,6 +359,114 @@ const Project = () => {
           </div>
         </div>
         {/* end of side pannel */}
+      </section>
+      <section className="right bg-red-200 flex-grow flex h-full ">
+        <div className="explorer h-full max-w-64 min-w-52 bg-slate-200">
+          <div className="file-tree w-full">
+            {Object.keys(fileTree).map((fileName, index) => {
+              return (
+                <div
+                  key={index}
+                  className="tree-element p-2 px-4 flex items-center gap-2 bg-slate-300 w-full"
+                >
+                  <button
+                    onClick={() => {
+                      setCurrentFile(fileName);
+                      setOpenFiles((prev) => {
+                        if (prev.includes(fileName)) {
+                          return prev;
+                        }
+                        return [...prev, fileName];
+                      });
+                    }}
+                    className="tree-element w-full p-2 px-4 flex items-center gap-2 bg-slate-300 cursor-pointer"
+                  >
+                    <p className="font-semibold text-gray-900 text-lg">
+                      {fileName}
+                    </p>
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        {currentFile && (
+          <div className="code-editor">
+            <div className="top">
+              <h1 className="text-lg text-gray-900 font-semibold">
+                {openFiles.map((fileName, index) => (
+                  <button
+                    key={index}
+                    onClick={() => setCurrentFile(fileName)}
+                    className={`open-file cursor-pointer bg-red-400 mr-1 pr-0.5 ${
+                      currentFile === fileName
+                        ? "bg-blue-600 text-white"
+                        : "bg-red-400"
+                    }`}
+                  >
+                    {fileName}
+
+                    <i
+                      onClick={() => {
+                        setOpenFiles((prev) => {
+                          const updateFiles = prev.filter(
+                            (file) => file !== fileName
+                          );
+                          const currentIndex = prev.indexOf(fileName);
+                          const nextFile =
+                            updateFiles[currentIndex] ||
+                            updateFiles[currentIndex - 1] ||
+                            updateFiles[currentIndex + 1] ||
+                            null;
+                          setCurrentFile(nextFile);
+                          return updateFiles;
+                        });
+                      }}
+                      className="ri-close-fill"
+                    />
+                  </button>
+                ))}
+              </h1>
+            </div>
+            <div className="bottom flex flex-grow">
+              {fileTree[currentFile] && (
+                <div className="code-editor-area h-full overflow-auto flex-grow bg-slate-50">
+                  <pre className="hljs h-full">
+                    <code
+                      className="hljs h-full outline-none"
+                      contentEditable
+                      suppressContentEditableWarning
+                      onBlur={(e) => {
+                        const updatedContent = e.target.innerText;
+                        const ft = {
+                          ...fileTree,
+                          [currentFile]: {
+                            file: {
+                              contents: updatedContent,
+                            },
+                          },
+                        };
+                        setFileTree(ft);
+                        saveFileTree(ft);
+                      }}
+                      dangerouslySetInnerHTML={{
+                        __html: hljs.highlight(
+                          "javascript",
+                          fileTree[currentFile].file.contents
+                        ).value,
+                      }}
+                      style={{
+                        whiteSpace: "pre-wrap",
+                        paddingBottom: "25rem",
+                        counterSet: "line-numbering",
+                      }}
+                    />
+                  </pre>=
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </section>
     </main>
   );
